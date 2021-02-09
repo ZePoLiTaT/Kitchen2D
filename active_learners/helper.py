@@ -2,15 +2,22 @@
 import numpy as np
 import scipy.optimize
 from sklearn.utils import shuffle
-import cPickle as pickle
+#import cPickle as pickle
+import pickle
 from sklearn.metrics import confusion_matrix
 import os
 from scipy.optimize import minimize
 from scipy.stats import norm
 from scipy.stats import truncnorm
 from functools import partial
-EPS = 1e-4
 
+EPS = 1e-4
+BASE_PATH = '/home/zepolitat/dev/Kitchen2D/data/'
+
+def pickle_load_compat(f):
+    u = pickle._Unpickler(f)
+    u.encoding = 'latin1'
+    return u.load()
 
 def get_pour_context(expid):
     '''
@@ -36,16 +43,17 @@ def get_xx_yy(expid, method, exp='pour'):
         method: training method (e.g. 'gp_lse', 'nn_classification', 'nn_regression', 'random').
         exp: experimented action (e.g. 'scoop', 'pour', 'push').
     '''
-    dirnm = 'data/'
+    dirnm = BASE_PATH
     fnm_prefix = os.path.join(dirnm, exp)
-    initx, inity = pickle.load(open('{}_init_data_{}.pk'.format(fnm_prefix, expid)))
+
+    initx, inity = pickle_load_compat(open('{}_init_data_{}.pk'.format(fnm_prefix, expid), 'rb'))
     fnm = '{}_{}_{}.pk'.format(fnm_prefix, method, expid)
-    xx, yy, c = pickle.load(open(fnm, 'rb'))
+    xx, yy, c = pickle_load_compat(open(fnm, 'rb'))
     xx = np.vstack((initx, xx))
     yy = np.hstack((inity, yy))
     return xx, yy, c
 
-def get_func_from_exp(exp):
+def get_func_from_exp(exp, **kwargs):
     '''
     Returns the function func associated with exp.
     Args: 
@@ -53,10 +61,19 @@ def get_func_from_exp(exp):
     '''
     if exp == 'pour':
         from kitchen2d.pour import Pour
-        func = Pour()
+        func = Pour(**kwargs)
+    elif exp == 'pour-dynamic':
+        from kitchen2d.pour_dyn import PourDynamic
+        func = PourDynamic(**kwargs)
+    elif exp == 'water-maze':
+        from kitchen2d.water_maze import WaterMaze
+        func = WaterMaze(**kwargs)
     elif exp == 'scoop':
         from kitchen2d.scoop import Scoop
-        func = Scoop()
+        func = Scoop(**kwargs)
+    elif exp == 'push':
+        from kitchen2d.push import Push
+        func = Push(**kwargs)
     return func
 
 def get_learner_from_method(method, initx, inity, func):
@@ -130,14 +147,15 @@ def diversity(xx, active_dim):
     l = np.ones(xx.shape[1]) 
     K = se_kernel(xx, xx, l)
     return np.log(scipy.linalg.det(K/0.01+np.eye(n))) #
+
 def check_close(x, xx):
     '''
     Check if x is close to any item in xx.
     '''
     dist = np.array([np.linalg.norm(x- xp) for xp in xx])
     i = dist.argmin()
-    print xx[i]
-    print 'dist=', dist[i]
+    print(xx[i])
+    print('dist=', dist[i])
 
 def sample_tgmm(center, scale, n, xmin, xmax):
     '''
@@ -162,7 +180,7 @@ def sample_tgmm(center, scale, n, xmin, xmax):
     def truncpdf(j,i):
         return truncnorm.pdf(x_samples_gmm[:,j], ta[i][j], tb[i][j], center[i][j], scale[j])
     
-    prob = [np.prod(map(partial(truncpdf, i=i), range(dx)), axis=0) for i in range(slen)]
+    prob = [np.prod(list(map(partial(truncpdf, i=i), range(dx))), axis=0) for i in range(slen)]
     prob = np.sum(prob, axis=0) / slen
     np.clip(prob, EPS, 1/EPS)
     return x_samples_gmm, 1./prob
@@ -182,7 +200,7 @@ def grid_around_point(p, grange, n, x_range):
     xmin = [max(p[d] - grange[d], x_range[0, d]) for d in range(dx)]
     xmax = [min(p[d] + grange[d], x_range[1, d]) for d in range(dx)]
     mg = np.meshgrid(*[np.linspace(xmin[d], xmax[d], n[d]) for d in range(dx)])
-    grids = map(np.ravel, mg)
+    grids = list(map(np.ravel, mg))
     return np.array(grids).T
 
 
@@ -197,7 +215,7 @@ def grid(n, x_range):
         n = [n]*dx
     xmin, xmax = x_range
     mg = np.meshgrid(*[np.linspace(xmin[d], xmax[d], n[d]) for d in range(dx)])
-    grids = map(np.ravel, mg)
+    grids = list(map(np.ravel, mg))
     return np.array(grids).T
 
 
@@ -308,11 +326,13 @@ def gen_data(func, N, parallel=False):
     if parallel:
         from multiprocessing import Pool
         import multiprocessing
-        cpu_n = multiprocessing.cpu_count()
+        cpu_n = 3 #multiprocessing.cpu_count()
         p = Pool(cpu_n)
         y = np.array(p.map(func, X))
     else:
-        y = np.array(map(func, X))
+        #y = np.array(map(func, X))
+        import ipdb; ipdb.set_trace()
+        y = np.array([func(x) for x in X])
     return X, y
 
 def gen_context(func, N=1):

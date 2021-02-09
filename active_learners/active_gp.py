@@ -2,7 +2,7 @@
 import numpy as np
 import GPy as gpy
 from scipy.stats import norm
-import helper
+import active_learners.helper as helper
 from active_learners.active_learner import ActiveLearner
 import time
 
@@ -48,6 +48,7 @@ class ActiveGP(ActiveLearner):
         self.is_adaptive = is_adaptive
         self.betalambda = betalambda
         self.sample_time_limit = sample_time_limit
+
     def query_best_prob(self, context):
         '''
         Returns the input that has the highest probability to be in the super 
@@ -79,7 +80,7 @@ class ActiveGP(ActiveLearner):
         x0 = np.vstack((x0, self.xx[np.squeeze(self.yy)>0][:,self.func.param_idx]))
         x_star, y_star = helper.global_minimize(
             ac_f, ac_fg, self.func.x_range[:, self.func.param_idx], 10000, x0)
-        print 'best beta=', -y_star
+        print('best beta=', -y_star)
         self.best_beta = -y_star
         self.beta = norm.ppf(self.betalambda*norm.cdf(self.best_beta))
         if self.best_beta < 0:
@@ -162,6 +163,7 @@ class ActiveGP(ActiveLearner):
         print('{} samples are generated with the adaptive sampler.'.format(len(good_samples)))
         self.good_samples = good_samples
         return x_samples
+
     def reset_sample(self):
         '''
         Clear the list of samples.
@@ -238,7 +240,7 @@ class ActiveGP(ActiveLearner):
         self.model['Gaussian_noise.variance'].constrain_bounded(1e-4,0.01, warning=False)
         # These GP hyper parameters need to be calibrated for good uncertainty predictions.
         self.model.optimize(messages=False)
-        print self.model
+        print(self.model)
 
     def query_lse(self, context):
         '''

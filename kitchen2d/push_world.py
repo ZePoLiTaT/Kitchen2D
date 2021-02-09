@@ -64,7 +64,7 @@ class guiWorld:
 
 
 class b2WorldInterface:
-    def __init__(self, do_gui=True):
+    def __init__(self, do_gui=False):
         self.world = b2World(gravity=(0.0, 0.0), doSleep=True)
         self.do_gui = do_gui
         self.TARGET_FPS = 100
@@ -93,7 +93,7 @@ class b2WorldInterface:
         else:
             self.bodies.append(new_bodies)
 
-    def step(self, show_display=True, idx=0):
+    def step(self, show_display=False, idx=0):
         self.world.Step(self.TIME_STEP, self.VEL_ITERS, self.POS_ITERS)
         if show_display and self.do_gui:
             self.gui_world.draw(self.bodies)
@@ -157,8 +157,8 @@ class end_effector:
             list(self.hand.linearVelocity) + [self.hand.angularVelocity]
         if verbose:
             print_state = ["%.3f" % x for x in state]
-            print "position, velocity: (%s), (%s) " % \
-                ((", ").join(print_state[:3]), (", ").join(print_state[3:]))
+            print("position, velocity: (%s), (%s) " % \
+                ((", ").join(print_state[:3]), (", ").join(print_state[3:])))
 
         return state
 

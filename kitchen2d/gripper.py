@@ -1,12 +1,12 @@
 # Author: Zi Wang
 from Box2D import *
 from Box2D.b2 import *
-from kitchen_constants import *
+from kitchen2d.kitchen_constants import *
 import scipy.interpolate
 import numpy as np
-from motion_planner import motion_planner
+from kitchen2d.motion_planner import motion_planner
 from scipy.spatial import ConvexHull
-import kitchen_stuff as ks
+import kitchen2d.kitchen_stuff as ks
 
 def create_gripper(world, lgripper_pos, rgripper_pos, 
                    init_angle, pj_motorSpeed, 
@@ -258,7 +258,7 @@ class Gripper(object):
 
 
     def pour(self, to_obj, rel_pos, dangle, exact_control=False,  
-             stop_ratio=1.0, topour_particles=1, p_range=SCREEN_WIDTH):
+             stop_ratio=1.0, topour_particles=1, p_range=SCREEN_WIDTH, maxspeed=0.1):
         '''
         Use the gripper to pour from the grapsed cup object to 
         to_obj, another cup object.
@@ -281,26 +281,32 @@ class Gripper(object):
             an idicator of whether the pouring action is successful.
             a score of the ratio of successfully poured particles.
         '''
+        #print('pour 1')
         assert(self.attached)
+        #print('pour 2')
         dpos = to_obj.position + rel_pos
         found = self.find_path(dpos, 0.)
         if not found:
             return False, 0
         if self.planning:
             return True, 1.
+        #print('pour 3')
         incupparticles, stopped = self.compute_post_grasp_mass()
         n_particles = len(incupparticles)
         assert n_particles > 0, 'No liquid in cup.'
+        #print('pour 4')
         stopped = False
         t = 0
         while (not stopped and t * TIME_STEP < 30.):
-            t += self.apply_lowlevel_control(dpos, dangle, maxspeed=0.1)
+            #print('...... t: ', t)
+            t += self.apply_lowlevel_control(dpos, dangle, maxspeed=maxspeed)
             post_incupparticles, stopped = self.compute_post_grasp_mass(p_range)
             if exact_control and n_particles - len(post_incupparticles) >= topour_particles*stop_ratio:
-                self.apply_lowlevel_control(dpos, 0, maxspeed=0.1)
+                self.apply_lowlevel_control(dpos, 0, maxspeed=maxspeed)
                 break
         in_to_cup, _, _ = incup(to_obj, incupparticles)
         self.apply_lowlevel_control(dpos, 0., maxspeed=0.5)
+        #print('------------', len(in_to_cup), stopped, t * TIME_STEP, t)
         return True, len(in_to_cup) * 1.0 / n_particles
 
     def get_cup_feasible(self, from_obj):
@@ -361,7 +367,7 @@ class Gripper(object):
         '''
         dposa1, dposa2 = self.get_dump_init_end_pose(to_obj, rel_pos_x)
         if not self.find_path(dposa1[:2], dposa1[2], motion_angle=dposa1[2]):
-            print 'Failed to find a path to dump'
+            print('Failed to find a path to dump')
             return False
         self.apply_control([dposa2])
         return True
@@ -379,7 +385,7 @@ class Gripper(object):
         
         cup_left_offset, cup_feasible = self.get_cup_feasible(from_obj)
         if cup_feasible[0] <=0 or cup_feasible[1] <= 0:
-            print 'impossible to scoop with the cup size'
+            print('impossible to scoop with the cup size')
             return False, 0
 
         verticle_offset = np.array([0, delta_pos])
@@ -427,7 +433,7 @@ class Gripper(object):
         
         cup_left_offset, cup_feasible = self.get_cup_feasible(from_obj)
         if cup_feasible[0] <=0 or cup_feasible[1] <= 0:
-            print 'Impossible to scoop with the cup size.'
+            print('Impossible to scoop with the cup size.')
             return False, 0
 
         verticle_offset = np.array([0, delta_pos])
@@ -455,6 +461,8 @@ class Gripper(object):
 
         traj = np.vstack((traj, np.hstack((dpos, -np.pi/2))))
 
+        #self.position
+
         self.apply_dmp_control(traj, maxspeed=maxspeed)
 
         
@@ -463,7 +471,7 @@ class Gripper(object):
         cnt = 0
         max_cnt = 10
         while not stopped:
-            print 'Balancing the spoon...'
+            print('Balancing the spoon...')
             self.apply_dmp_control(np.hstack((dpos, -np.pi/2)), maxspeed=0.1)
             in_spoon, stopped = self.compute_post_grasp_mass()
             cnt += 1
@@ -496,6 +504,7 @@ class Gripper(object):
             runtime: the duration of time (in seconds) that the 
             gripper stays under the faucet.
         '''
+        #import pdb; pdb.set_trace()
         assert(self.attached)
         gripper_pos = self.get_liquid_from_faucet_pos()
         found = self.find_path(gripper_pos, 0)
@@ -504,6 +513,7 @@ class Gripper(object):
         if self.planning:
             return True
         t = 0
+
         while t < runtime/TIME_STEP:
             t += self.apply_lowlevel_control(gripper_pos, 0, maxspeed=0.1)
             self.compute_post_grasp_mass()
@@ -521,7 +531,7 @@ class Gripper(object):
         
         cup_left_offset, cup_feasible = self.get_cup_feasible(from_obj)
         if (cup_feasible[0] <= 0) or (cup_feasible[1] <= 0):
-            print 'impossible to scoop with the cup size'
+            print('impossible to scoop with the cup size')
             return False, 0
 
         vertical_offset = np.array([0, delta_pos])
@@ -614,7 +624,7 @@ class Gripper(object):
         found = self.find_path(dpos_gripper, obj_dangle)
 
         if not found:
-            print 'Failed to place because no path was found.'
+            print('Failed to place because no path was found.')
             return False
         _, dpos_up = self.get_grasp_poses(self.attached_obj, 0)
         self.open()
@@ -749,7 +759,7 @@ class Gripper(object):
         self.close()
         found = self.find_path(dpos, 0)
         if not found:
-            print found
+            print(found)
             return False
         if self.planning:
             return True
@@ -903,6 +913,7 @@ class Gripper(object):
         if traj.ndim == 1:
             traj = traj[None,:]
         cur_pos = np.hstack((self.position, self.angle))
+        traj_ori = traj.copy()
 
         if np.linalg.norm(cur_pos-traj[0]) != 0:
             traj = np.vstack((cur_pos, traj))
@@ -914,9 +925,10 @@ class Gripper(object):
         max_timesteps = int(tot_length / maxspeed / TIME_STEP + 1) + 1
         timesteps = max_timesteps
         runtime = timesteps * TIME_STEP
+        
         path_gen = scipy.interpolate.interp1d(np.cumsum(segment_lengths)*runtime/tot_length, traj.T, fill_value='extrapolate')
         traj = path_gen(np.arange(timesteps) * runtime / (timesteps-1))
-
+        
         w = self.get_traj_weight(traj, a, b)
         for step in range(timesteps+2):
             x = np.exp(-step*TIME_STEP)
@@ -937,6 +949,14 @@ class Gripper(object):
             self.lgripper.ApplyForce(lforce, self.lgripper.position, wake=True)
             self.rgripper.ApplyForce(rforce, self.rgripper.position, wake=True)
             self.b2w.step()
+
+            # import ipdb; ipdb.set_trace()
+            # cur_interp_pos = np.hstack((self.position, self.angle))
+            # cur_interp_dist2chkpt = [np.linalg.norm(traj_chkpt - cur_interp_pos) for traj_chkpt in traj_ori]
+            # cur_interp_epsilon = [dst < 0.1 for dst in cur_interp_dist2chkpt]
+            
+            # if np.any(cur_interp_epsilon):
+            #     print('Reached chkpt ', cur_interp_epsilon, traj_ori)
         return True
 
     def apply_lowlevel_control(self, dpos, dangle, maxspeed=1., collision_check=False):
@@ -958,6 +978,8 @@ class Gripper(object):
         cur_pos = np.hstack((self.position, self.angle))
 
         t0 = 1 # timesteps for acceleration and deceleration
+        #if maxspeed <= 0:
+        #    print('asdasdsads maxspeed>0')
         assert maxspeed > 0
         max_timesteps = int(np.max(np.abs(dposa - cur_pos)/maxspeed) / TIME_STEP + 1) + t0
         t = max_timesteps
@@ -980,11 +1002,14 @@ class Gripper(object):
             self.b2w.step()
             traj.append((self.position, self.angle))
             if collision_check and self.check_collision():
+                #print('[apply_lowlevel_control] 1')
                 return traj, True
 
         if collision_check:
+            #print('[apply_lowlevel_control] 2')
             return traj, False
         else:
+            #print('[apply_lowlevel_control] 3')
             return len(ddy)
 
     def check_point_collision(self, pos, angle=0.):
@@ -998,6 +1023,7 @@ class Gripper(object):
         self.rgripper.ApplyForce(force, self.rgripper.position, wake=True)
         self.b2w.step()
         return self.check_collision()
+
     def check_path_collision(self, pos, angle, dpos, dangle):
         '''
         Checks if the gripper is colliding with objects in the scene if 

@@ -21,8 +21,16 @@ SETTING = {
 }
 
 
-def query_gui(action_type, kitchen):
-    choice = raw_input('Show GUI for {}? [y/n]'.format(action_type))
+def query_gui(action_type, kitchen, dontask=None):
+
+    if dontask is not None:
+        if dontask:
+            kitchen.enable_gui()
+        else:
+            kitchen.disable_gui()
+        return
+
+    choice = input('Show GUI for {}? [y/n]'.format(action_type))
     if choice == 'y':
         print('Enabling GUI...')
         kitchen.enable_gui()
@@ -53,15 +61,15 @@ def main():
     large_cup = ks.make_cup(kitchen, (23, 0), 0, scoop_w, scoop_h, holder_d)
     
     # Move
-    query_gui('MOVE', kitchen)
+    query_gui('MOVE', kitchen, dontask=True)
     gripper.find_path((-5., 10), 0, maxspeed=0.5)
 
     # Push
-    query_gui('PUSH', kitchen)
+    query_gui('PUSH', kitchen, dontask=True)
     gripper.push(block, (1.,0.), -6, 0.5)
 
     # Pick
-    query_gui('GRASP', kitchen)
+    query_gui('GRASP', kitchen, dontask=True)
     # Sample from the super level set of the GP learned for pour
     grasp, rel_x, rel_y, dangle, _, _, _, _ = gp_pour.sample(c_pour)
     dangle *= np.sign(rel_x)
@@ -70,15 +78,15 @@ def main():
     gripper.grasp(cup1, grasp)
 
     # Get water
-    query_gui('GET-WATER', kitchen)
+    query_gui('GET-WATER', kitchen, dontask=True)
     gripper.get_liquid_from_faucet(5)
 
     # Pour
-    query_gui('POUR', kitchen)
-    print gripper.pour(cup2, (rel_x, rel_y), dangle)
+    query_gui('POUR', kitchen, dontask=True)
+    print(gripper.pour(cup2, (rel_x, rel_y), dangle))
 
     # Place
-    query_gui('PLACE', kitchen)
+    query_gui('PLACE', kitchen, dontask=True)
     gripper.place((10, 0), 0)
     
     # Scoop
@@ -86,22 +94,22 @@ def main():
     kitchen.gen_liquid_in_cup(cup1, 200)
     spoon = ks.make_spoon(kitchen, (23, 10), 0, 0.2, 3, 1.)
 
-    query_gui('SCOOP', kitchen)
+    query_gui('SCOOP', kitchen, dontask=True)
     rel_x1, rel_y1, rel_x2, rel_y2, rel_x3, rel_y3, grasp, _, _ = gp_scoop.sample(c_scoop)
     rel_pos1 = (rel_x1, rel_y1); rel_pos2 = (rel_x2, rel_y2); rel_pos3 = (rel_x3, rel_y3)
     gripper.set_grasped(spoon, grasp, (23, 10), 0)
-    print gripper.scoop(large_cup, rel_pos1, rel_pos2, rel_pos3)
+    print(gripper.scoop(large_cup, rel_pos1, rel_pos2, rel_pos3))
 
     # Dump
-    query_gui('DUMP', kitchen)
+    query_gui('DUMP', kitchen, dontask=True)
     gripper.dump(cup1, 0.9)
     
     # Place
-    query_gui('PLACE', kitchen)
+    query_gui('PLACE', kitchen, dontask=True)
     gripper.place((26, 10.), 0)
 
     # Stir
-    query_gui('STIR', kitchen)
+    query_gui('STIR', kitchen, dontask=True)
     stirrer = ks.make_stirrer(kitchen, (0, 3.5), 0., 0.2, 5., 0.5)
     gripper.set_grasped(stirrer, 0.8, (10, 10), 0)
     gripper.stir(cup1, (0, 0.0), (1, 0.0))

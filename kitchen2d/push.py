@@ -1,16 +1,21 @@
 #!/usr/bin/env python
 # Copyright (c) 2017 Zi Wang
-from push_world import b2WorldInterface, construct_scene, end_effector, simulate_push
+from kitchen2d.push_world import b2WorldInterface, construct_scene, end_effector, simulate_push
 import sys
 import numpy as np
-import cPickle as pickle
+try:
+    import cPickle as pickle
+except:
+    import pickle
 import os
 
 
 class Push(object):
+    
     def __init__(self, use_gui=False):
         self.x_range = np.array(
             [[-5., -5., 0., 0., -5., -5.], [5., 5., 2*np.pi, 2., 5., 5.]])
+        self.names = ['rpos_x', 'rpos_y', 'rangle', 's_time', 'goal_x', 'goal_y']
         self.lengthscale_bound = np.array([np.ones(6)*0.1, [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]])
         self.context_idx = [4, 5]
         self.param_idx = [0, 1, 2, 3]

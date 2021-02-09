@@ -22,27 +22,28 @@ settings = {
         'faucet_w': 5.,
         'faucet_d': 0.5,
         'planning': False,
-        'save_fig': False
+        'save_fig': False,
+        'overclock': 50 # number of frames to skip when showing graphics.
     }
 }
 
-class Pour(object):
+class PourDynamic(object):
     def __init__(self):
-        #grasp_ratio, relative_pos_x, relative_pos_y, dangle, cw1, ch1, cw2, ch2
+        #grasp_ratio, relative_pos_x, relative_pos_y, dangle, cw1, ch1, cw2, ch2, vol
         self.x_range = np.array(
-            [[0., -10., 1., np.pi/2, 4., 4., 3., 3.], 
-            [1., 10., 10., np.pi, 5., 5., 4.5, 5.]])
+            [[0., -10., 1., np.pi/2, 2., 4., 3., 3., 100], 
+            [1., 10., 10., np.pi, 5., 5., 4.5, 5., 1000]])
             #[1., 10., 10., np.pi, 8., 5., 4.5, 5.]]) #this is the upper bound used in the paper.
-        self.names = ['grasp_ratio', 'rel_x', 'rel_y', 'dangle', 'cw1', 'ch1', 'cw2', 'ch2']
+        self.names = ['grasp_ratio', 'rel_x', 'rel_y', 'dangle', 'cw1', 'ch1', 'cw2', 'ch2', 'vol']
         self.lengthscale_bound = np.array([np.ones(8)*0.1, [0.15, 0.5, 0.5, 0.2, 0.5, 0.5, 0.5, 0.5]])
-        self.context_idx = [4, 5, 6, 7]
+        self.context_idx = [4, 5, 6, 7, 8]
         self.param_idx = [0, 1, 2, 3]
         self.dx = len(self.x_range[0])
         self.task_lengthscale = np.ones(8)*10
         self.do_gui = False
         
     def check_legal(self, x):
-        grasp_ratio, rel_x, rel_y, dangle, cw1, ch1, cw2, ch2 = x
+        grasp_ratio, rel_x, rel_y, dangle, cw1, ch1, cw2, ch2, vol = x
         dangle *= np.sign(rel_x)
         settings[0]['do_gui'] = self.do_gui
         kitchen = Kitchen2D(**settings[0])
@@ -79,7 +80,7 @@ class Pour(object):
         #import traceback
         #print(traceback.print_exc())
 
-        grasp_ratio, rel_x, rel_y, dangle, cw1, ch1, cw2, ch2 = x
+        grasp_ratio, rel_x, rel_y, dangle, cw1, ch1, cw2, ch2, vol = x
         dangle *= np.sign(rel_x)
         if self.kitchen.planning:
             self.gripper.close()
@@ -88,7 +89,7 @@ class Pour(object):
             self.kitchen.image_name = image_name
             self.kitchen.step()
             return
-        self.kitchen.gen_liquid_in_cup(self.cup2, 500)
+        self.kitchen.gen_liquid_in_cup(self.cup2, int(vol))
         self.gripper.compute_post_grasp_mass()
         self.gripper.close(timeout=0.1)
         self.gripper.check_grasp(self.cup2)

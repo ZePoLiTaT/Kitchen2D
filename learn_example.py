@@ -1,9 +1,19 @@
 # Author: Zi Wang
-import cPickle as pickle
+try:
+    import cPickle as pickle
+except:
+    import pickle
 import os
 import active_learners.helper as helper
 from active_learners.active_learner import run_ActiveLearner
 
+
+def measure_exec_time(func):
+    time_s = time.time()
+    response = func()
+    time_e = time.time() - time_s
+    print('Exec time: ', time_e)
+    return response
 
 def gen_data(expid, exp, n_data, save_fnm):
     '''
@@ -15,9 +25,9 @@ def gen_data(expid, exp, n_data, save_fnm):
         save_fnm: a file name string where the initial data will be
         saved.
     '''
-    print('Generating data...')
+    print('Generating data...')    
     func = helper.get_func_from_exp(exp)
-    xx, yy = helper.gen_data(func, n_data)
+    xx, yy = helper.gen_data(func, n_data, parallel=True)
     pickle.dump((xx, yy), open(save_fnm, 'wb'))
 
 def run_exp(expid, exp, method, n_init_data, iters):
@@ -45,7 +55,7 @@ def run_exp(expid, exp, method, n_init_data, iters):
         save_fnm: a file name string where the initial data will be
         saved.
     '''
-    dirnm = 'data/'
+    dirnm = helper.BASE_PATH
     if not os.path.isdir(dirnm):
         os.mkdir(dirnm)
     init_fnm = os.path.join(
@@ -66,8 +76,8 @@ def run_exp(expid, exp, method, n_init_data, iters):
     context = helper.gen_context(func)
 
     # start running the learner
-    print('Start running the learning experiment...')
-    run_ActiveLearner(active_learner, context, learn_fnm, iters)
+    run_ActiveLearner(active_learner, context, learn_fnm, iters)    
+    print('Finished running the learning experiment with context...', context)
 
 def sample_exp(expid, exp, method):
     '''
@@ -77,21 +87,23 @@ def sample_exp(expid, exp, method):
         exp: name of the experiment; e.g. 'pour', 'scoop'.
         method: see run_exp.
     '''
-    func = helper.get_func_from_exp(exp)
-    xx, yy, c = helper.get_xx_yy(expid, method, exp=exp)
+    func = helper.get_func_from_exp(exp)    
+    xx, yy, context = helper.get_xx_yy(expid, method, exp=exp)
     active_learner = helper.get_learner_from_method(method, xx, yy, func)
     active_learner.retrain()
     # Enable gui
     func.do_gui = True
-    while raw_input('Continue? [y/n]') == 'y':
-        x = active_learner.sample(c)
+    while input('Continue? [y/n]') == 'y':
+        print('sampling')
+        x = active_learner.sample(context)
+        print('x: ', x)
         func(x)
 
 if __name__ == '__main__':
-    exp = 'scoop'
-    method = 'gp_lse'
-    expid = 0
-    n_init_data = 10
-    iters = 50
+    exp = 'pour'
+    method = 'gp_lse' #'nn_regression'# 'gp_lse' #'random'
+    expid = 3000
+    n_init_data = 300
+    iters = 3000
     run_exp(expid, exp, method, n_init_data, iters)
     sample_exp(expid, exp, method)

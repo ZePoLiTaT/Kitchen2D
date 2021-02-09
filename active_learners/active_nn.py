@@ -5,16 +5,19 @@ import scipy.optimize
 from keras.models import Sequential
 from keras.layers import Dense, Dropout
 from keras.optimizers import adam
-from active_learner import ActiveLearner
+from active_learners.active_learner import ActiveLearner
 import keras.backend as kb
 from sklearn.utils import shuffle
-import cPickle as pickle
+try:
+    import cPickle as pickle
+except:
+    import pickle
 from sklearn.metrics import confusion_matrix
 import os
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from scipy.stats import norm
-import helper
+import active_learners.helper as helper
 import time
 
 
@@ -99,7 +102,10 @@ class ActiveNN(ActiveLearner):
         return np.hstack((x_star, context))
     def reset_sample(self):
         pass
+    # def sample(self, context):
+    #     return self.sample_adaptive(context, N=1)
     def sample_adaptive(self, context, N=10):
+        import pdb; pdb.set_trace()
         xx = self.gen_adaptive_samples(context, m=N)
         return np.hstack((xx, np.tile(context, (xx.shape[0], 1))))
     def gen_adaptive_samples(self, context, n=10000, m=50):
@@ -170,6 +176,7 @@ class ActiveNN(ActiveLearner):
         print('good samples len = {}'.format(len(good_samples)))
         self.good_samples = good_samples
         return x_samples
+
     def get_sample_weight(self):
         n_tot = self.xx.shape[0]
 
@@ -191,6 +198,11 @@ class ActiveNN(ActiveLearner):
                 newy = newy > 0
             self.yy = np.hstack((self.yy, newy))
         sample_weight = self.get_sample_weight()
+
+        print('----------------------------')
+        print('y', self.yy)
+        #print('w', sample_weight)
+        
         self.xx, self.yy, sample_weight = shuffle(
             self.xx, self.yy, sample_weight)
         self.model.fit(self.xx, self.yy, epochs=initial_epoch+self.epochs, batch_size=100,
