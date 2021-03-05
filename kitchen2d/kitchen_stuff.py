@@ -61,7 +61,7 @@ class guiWorld:
             position = (position[0], SCREEN_HEIGHT_PX-position[1])
             color = self.colors.get(body.userData, self.colors['default'])
             pygame.draw.circle(self.screen, color, [int(x) for x in position],
-                               int(circle.radius*PPM))
+                               np.max([1, int(circle.radius*PPM)]))
 
         b2PolygonShape.draw = my_draw_polygon
         b2CircleShape.draw = my_draw_circle

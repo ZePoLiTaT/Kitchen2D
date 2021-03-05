@@ -101,6 +101,7 @@ def genPour(grip_name, cup_name, kettle_name, pose2):
     cup = ph.make_body(kitchen, cup_name, ph.cupInitPos)
     kettle = ph.make_body(kitchen, kettle_name, pose2)
 
+    # MITSETTA PLANNING GP (ZEPOLITAT) #
     #####################GP START##############################
     gp, c = helper.process_gp_sample(ph.expid_pour, ph.FLAG_LK, ph.IS_ADAPTIVE,
                                      task_lengthscale=ph.TASK_LENGTH_SCALE)

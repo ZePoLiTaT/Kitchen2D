@@ -6,7 +6,7 @@ except:
 import os
 import active_learners.helper as helper
 from active_learners.active_learner import run_ActiveLearner
-
+import time
 
 def measure_exec_time(func):
     time_s = time.time()
@@ -15,7 +15,7 @@ def measure_exec_time(func):
     print('Exec time: ', time_e)
     return response
 
-def gen_data(expid, exp, n_data, save_fnm):
+def gen_data(expid, exp, n_data, save_fnm, cpu_n=4):
     '''
     Generate initial data for a function associated the experiment.
     Args:
@@ -27,10 +27,11 @@ def gen_data(expid, exp, n_data, save_fnm):
     '''
     print('Generating data...')    
     func = helper.get_func_from_exp(exp)
-    xx, yy = helper.gen_data(func, n_data, parallel=True)
+
+    xx, yy = helper.gen_data(func, n_data, cpu_n=cpu_n)
     pickle.dump((xx, yy), open(save_fnm, 'wb'))
 
-def run_exp(expid, exp, method, n_init_data, iters):
+def run_exp(expid, exp, method, n_init_data, iters, context=None):
     '''
     Run the active learning experiment.
     Args:
@@ -73,13 +74,15 @@ def run_exp(expid, exp, method, n_init_data, iters):
             dirnm, '{}_{}_{}.pk'.format(exp, method, expid))
 
     # get a context
-    context = helper.gen_context(func)
+    random_context = context=='random'
+    if not context or random_context:
+        context = helper.gen_context(func)
 
     # start running the learner
-    run_ActiveLearner(active_learner, context, learn_fnm, iters)    
+    run_ActiveLearner(active_learner, context, learn_fnm, iters, random_context=random_context)    
     print('Finished running the learning experiment with context...', context)
 
-def sample_exp(expid, exp, method):
+def sample_exp(expid, exp, method, random_context=False):
     '''
     Sample from the learned model.
     Args:
@@ -87,23 +90,53 @@ def sample_exp(expid, exp, method):
         exp: name of the experiment; e.g. 'pour', 'scoop'.
         method: see run_exp.
     '''
-    func = helper.get_func_from_exp(exp)    
+    func = helper.get_func_from_exp(exp)   
     xx, yy, context = helper.get_xx_yy(expid, method, exp=exp)
+    print('Loaded context: ', context)
     active_learner = helper.get_learner_from_method(method, xx, yy, func)
     active_learner.retrain()
+
     # Enable gui
     func.do_gui = True
     while input('Continue? [y/n]') == 'y':
-        print('sampling')
+
+        if random_context:
+            context = helper.gen_context(func)
+            print('New context: ', context)
+
+        active_learner.is_adaptive = True
+        print('sampling adaptive? ', active_learner.is_adaptive)
+        ts = time.time()
         x = active_learner.sample(context)
-        print('x: ', x)
-        func(x)
+        te = time.time()-ts
+        y = func(x)
+        print('x: {}, y: {} [Time: {}]'.format(x, y, te))
+        
 
 if __name__ == '__main__':
     exp = 'pour'
     method = 'gp_lse' #'nn_regression'# 'gp_lse' #'random'
-    expid = 3000
-    n_init_data = 300
-    iters = 3000
-    run_exp(expid, exp, method, n_init_data, iters)
-    sample_exp(expid, exp, method)
+    # expid = '2k_fix_ctx_4'
+    expid = '2k_fix_ctx_8'
+    # expid = '10'
+    # expid = '2k_rand_ctx'
+    # expid = '2k_rand_ctx'
+
+    n_init_data = 100 #100 #300
+    iters = 1900
+
+    # context = [4.833278658190212, 4.804885678143026, 3.9830618868497387, 3.2334355753690964]
+    # context = [4.743738087004583,4.943091337192776,3.3374507988113242,3.010520430848918]
+    # context = [4.5389033420550895, 4.232835173028836, 3.0997657305491124, 4.190558602827117]
+    # context = [4.678802287108174,4.564399297202194,3.9451703815858084,3.9258270969416946]
+
+    # context = [4.385101819756269,4.936988735590781,3.291328930704763,4.765813671565134]
+
+    # context = [4.401222524477312,4.63263266270377,3.1421457242848048,3.354042045100015]
+    context = [4.629142099063606,4.115335185306216,3.210574332496111,3.296484717039732]
+    # context = [4.219517898660544,4.18672024385849,3.6066009654135516,3.2194459009840086]
+    # context = 'random'
+
+    run_exp(expid, exp, method, n_init_data, iters, context)
+
+    sample_exp(expid, exp, method, random_context=False)

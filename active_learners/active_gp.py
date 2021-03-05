@@ -39,6 +39,7 @@ class ActiveGP(ActiveLearner):
         self.init_len = len(initx)
         self.sampled_xx = []
         self.good_samples = []
+        self.total_good_samples = 0
         if task_lengthscale is None:
             self.task_lengthscale = func.task_lengthscale[func.param_idx]
         else:
@@ -84,7 +85,7 @@ class ActiveGP(ActiveLearner):
         self.best_beta = -y_star
         self.beta = norm.ppf(self.betalambda*norm.cdf(self.best_beta))
         if self.best_beta < 0:
-            raw_input('Warning! Cannot find any parameter to be super level set \
+            print('Warning! Cannot find any parameter to be super level set \
                    with more than 0.5 probability. Are you sure to continue?')
         if self.beta > self.best_beta:
             raise ValueError('Beta cannot be larger than best beta.')
@@ -122,6 +123,7 @@ class ActiveGP(ActiveLearner):
         else:
             x_samples = np.vstack((x_samples, self.sampled_xx[:, self.func.param_idx]))
         assert(len(x_samples) > 0)
+        # import pdb; pdb.set_trace()
         good_inds = ac_f(x_samples) > self.beta
         good_samples = np.vstack((x_samples[good_inds], good_samples))
         prob = np.hstack(( np.ones(len(good_samples)), prob ))
@@ -130,7 +132,7 @@ class ActiveGP(ActiveLearner):
         while flag or len(good_samples) <= m:
             flag = False # make sure it samples at least once
             if time.time() - t_start > self.sample_time_limit:
-                print('Elapsed sampling time = {}, sampling iterations = {}'.format(time.time() - t_start), sampled_cnt)
+                print('Elapsed sampling time = {}, sampling iterations = {}'.format(time.time() - t_start, sampled_cnt))
                 raise ValueError('Not enough good samples.')
             sampled_cnt += 1
 
@@ -142,7 +144,7 @@ class ActiveGP(ActiveLearner):
             good_samples = np.vstack((x_samples_unif, good_samples))
             prob = np.hstack((prob_unif, prob))
 
-            if len(x_samples) > 0 and self.is_adaptive is not None:
+            if len(x_samples) > 0 and 0 is not None:
                 x_samples_gmm, prob_gmm = helper.sample_tgmm(x_samples, scale, n, xmin, xmax)
                 good_inds = ac_f(x_samples_gmm) > self.beta
                 x_samples_gmm = x_samples_gmm[good_inds]
@@ -162,6 +164,7 @@ class ActiveGP(ActiveLearner):
 
         print('{} samples are generated with the adaptive sampler.'.format(len(good_samples)))
         self.good_samples = good_samples
+        self.total_good_samples += len(good_samples)
         return x_samples
 
     def reset_sample(self):
@@ -170,6 +173,7 @@ class ActiveGP(ActiveLearner):
         '''
         self.sampled_xx = []
         self.good_samples = []
+        self.total_good_samples = 0
 
     def sample_adaptive(self, context):
         '''
@@ -177,11 +181,13 @@ class ActiveGP(ActiveLearner):
         using the adaptive sampler.
         '''
         if len(self.sampled_xx) == 0:
+            print(' ------- Adaptive Sampler -----------')
             xx = self.gen_adaptive_samples(context)
             self.unif_samples = np.hstack((xx, np.tile(context, (xx.shape[0], 1))))
             self.sampled_xx = np.array([self.unif_samples[0]])
         else:
             if len(self.unif_samples) < 10: 
+                print(' ------- Adaptive Sampler -----------')
                 xx = self.gen_adaptive_samples(context)
                 self.unif_samples = np.hstack((xx, np.tile(context, (xx.shape[0], 1))))
 
@@ -191,6 +197,7 @@ class ActiveGP(ActiveLearner):
         
         self.unif_samples = np.delete(self.unif_samples, (0), axis=0)
         return self.sampled_xx[-1]
+
     def sample(self, context):
         '''
         Returns one sample from the high probability super level set for a given context.
@@ -198,15 +205,18 @@ class ActiveGP(ActiveLearner):
         if self.is_adaptive:
             return self.sample_adaptive(context)
 
-        if len(self.sampled_xx) == 0:
+        if len(self.sampled_xx) == 0:            
             self.sampled_xx = np.array([self.query_best_prob(context)])
+            self.total_good_samples = 1
         else:
             # Learning task-level kernel lengthscale
             if self.flag_lk and len(self.sampled_xx) >= 2:
+                print(' ------- Diverse Sampler -----------')
                 d = helper.important_d(self.sampled_xx[-1, self.func.param_idx], self.sampled_xx[:-1, self.func.param_idx], self.task_lengthscale)
                 self.task_lengthscale[d] *= 0.7
             # End of learning task-level kernel lengthscale
             if len(self.good_samples) < 10:
+                print(' ------- Diverse Sampler -----------')
                 self.gen_adaptive_samples(context)
             sid = helper.argmax_condvar(self.good_samples, self.sampled_xx[:, self.func.param_idx], self.task_lengthscale)
             new_s = np.hstack((self.good_samples[sid], context))
@@ -260,6 +270,8 @@ class ActiveGP(ActiveLearner):
             x = np.hstack((x, np.tile(context, (x.shape[0], 1))))
             mu, var = self.model.predict(x)
             return -1.96*np.sqrt(var) + np.abs(mu)
+
+        # import pdb; pdb.set_trace()
         x_star, _ = helper.global_minimize(
             ac_f, None, self.func.x_range[:, self.func.param_idx], 10000, x0)
         

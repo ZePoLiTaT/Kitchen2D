@@ -36,6 +36,7 @@ def get_scoop_context(expid):
     return scoop_w, scoop_h
 
 def get_xx_yy(expid, method, exp='pour'):
+    
     '''
     Returns the training data {xx, yy} and the context c of an experiment.
     Args:
@@ -46,12 +47,17 @@ def get_xx_yy(expid, method, exp='pour'):
     dirnm = BASE_PATH
     fnm_prefix = os.path.join(dirnm, exp)
 
-    initx, inity = pickle_load_compat(open('{}_init_data_{}.pk'.format(fnm_prefix, expid), 'rb'))
     fnm = '{}_{}_{}.pk'.format(fnm_prefix, method, expid)
     xx, yy, c = pickle_load_compat(open(fnm, 'rb'))
-    xx = np.vstack((initx, xx))
-    yy = np.hstack((inity, yy))
-    return xx, yy, c
+
+    try:
+        initx, inity = pickle_load_compat(open('{}_init_data_{}.pk'.format(fnm_prefix, expid), 'rb'))
+        xx = np.vstack((initx, xx))
+        yy = np.hstack((inity, yy))
+        return xx, yy, c
+    except:
+        print('Init data not found. Using exp data only.')
+        return xx, yy, c
 
 def get_func_from_exp(exp, **kwargs):
     '''
@@ -99,19 +105,20 @@ def get_learner_from_method(method, initx, inity, func):
         inity: initial y data
         func: a scoring function; e.g. Pour in kitchen2d/pour.py.
     '''
-    if method is 'nn_classification':
+    print(method is 'random', method == 'random')
+    if method == 'nn_classification':
         from active_learners.active_nn import ActiveNN
         active_learner = ActiveNN(func, initx, inity, 'classification')
-    elif method is 'nn_regression':
+    elif method == 'nn_regression':
         from active_learners.active_nn import ActiveNN
         active_learner = ActiveNN(func, initx, inity, 'regression')
-    elif method is 'gp_best_prob':
+    elif method == 'gp_best_prob':
         from active_learners.active_gp import ActiveGP
         active_learner = ActiveGP(func, initx, inity, 'best_prob')
-    elif method is 'gp_lse':
+    elif method == 'gp_lse':
         from active_learners.active_gp import ActiveGP
         active_learner = ActiveGP(func, initx, inity, 'lse')
-    elif method is 'random':
+    elif method == 'random':
         from active_learners.active_learner import RandomSampler
         active_learner = RandomSampler(func)
     return active_learner
@@ -224,9 +231,13 @@ def global_minimize(f, fg, x_range, n, guesses, callback=None):
     tx = np.random.uniform(x_range[0], x_range[1], (n, dx))
     tx = np.vstack((tx, guesses))
     ty = f(tx)
+    
     x0 = tx[ty.argmin()]  # 2d array 1*dx
     if fg is None:
-        res = minimize(f, x0, bounds=x_range.T, method='L-BFGS-B', callback=None)
+        # TODO: This is a hack! Why didnt I have to do it before??? pyversion? GPyversion?
+        f2 = lambda x: f(x).reshape(-1,)
+        # import pdb; pdb.set_trace()
+        res = minimize(f2, x0, bounds=x_range.T, method='L-BFGS-B', callback=None)
         x_star, y_star = res.x, res.fun
         return x_star, y_star
     else:
@@ -316,24 +327,38 @@ def regression_acc(y_true, y_pred):
     return acc, fpr, fnr
 
 
-def gen_data(func, N, parallel=False):
+def gen_data(func, N, cpu_n=3, context=None):
     '''
     Generate N data points on function func.
     Use multiprocessing if parallel is True; otherwise False.
     '''
-    X = np.random.uniform(
-        func.x_range[0], func.x_range[1], (N, func.x_range.shape[1]))
+    parallel = cpu_n > 1
+    print(f'Gen {N} Parallel? {parallel} Cores[{cpu_n}]')
+
+    if not context:
+        X = np.random.uniform(
+            func.x_range[0], func.x_range[1], (N, func.x_range.shape[1]))
+    else:
+        tiled_context = np.array([context for _ in range(N)])
+        X = np.random.uniform(
+            func.x_range[0, func.param_idx], func.x_range[1, func.param_idx], (N, len(func.param_idx)))
+        X = np.hstack((X, tiled_context))
+        
     if parallel:
         from multiprocessing import Pool
         import multiprocessing
-        cpu_n = 3 #multiprocessing.cpu_count()
+        # cpu_n = 3 #multiprocessing.cpu_count()
         p = Pool(cpu_n)
         y = np.array(p.map(func, X))
     else:
         #y = np.array(map(func, X))
         import ipdb; ipdb.set_trace()
         y = np.array([func(x) for x in X])
-    return X, y
+
+    if not context:
+        return X, y
+    else:
+        return X, y, tiled_context
 
 def gen_context(func, N=1):
     '''
